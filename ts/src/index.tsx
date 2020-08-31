@@ -6,6 +6,6 @@ import ParaView from './Paraview.tsx';
 const rootContainer = document.getElementById('root');
 ReactDOM.unmountComponentAtNode(rootContainer);
 ReactDOM.render(
-  <ParaView/>,
+  <ParaView />,
   rootContainer
 );

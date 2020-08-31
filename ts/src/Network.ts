@@ -18,7 +18,7 @@ export interface Connection {
 }
 
 let conn: Connection | null = null;
-let client: Client | null = null;
+const client: Client | null = null;
 let smartConnect = null;
 
 export type ReadyCallback = (conn: Connection) => void;
@@ -42,7 +42,7 @@ const customProtocols = {
 
 function start(wslinkConn: WslinkConnection) {
   conn = {
-    wslinkConn: wslinkConn,
+    wslinkConn,
     client: createClient(
       wslinkConn,
       [
@@ -54,7 +54,7 @@ function start(wslinkConn: WslinkConnection) {
         'TimeHandler',
         'ViewPort',
         'VtkImageDelivery',
-        'VtkGeometryDelivery',
+        'VtkGeometryDelivery'
       ],
       customProtocols
     )
@@ -87,7 +87,7 @@ function exit(timeout = 60) {
 
 export function connect(config) {
   if (conn) {
-    console.log("Connect: noop");
+    console.log('Connect: noop');
     return;
   }
   console.log(`Connect! ${config}`);
