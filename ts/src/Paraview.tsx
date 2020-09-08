@@ -1,13 +1,9 @@
 import * as React from 'react';
-
+import Select from '@material-ui/core/Select';
+import MenuItem from '@material-ui/core/MenuItem';
 import VtkRenderer from 'paraviewweb/src/React/Renderers/VtkRenderer';
-import VtkGeometryRenderer from 'paraviewweb/src/React/Renderers/VtkGeometryRenderer';
 
 import * as Network from './Network.ts';
-
-// import network from './network';
-// import ImageProviders from './ImageProviders';
-// import LocalRenderingImageProvider from './LocalRenderingImageProvider';
 
 interface Props {
   resetCamera? : () => void;
@@ -21,17 +17,14 @@ interface Props {
 
 const ParaView: React.FunctionComponent<Props> = (props) => {
   const [conn, setConn] = React.useState<Network.Connection | null>(null);
-  const [remoteRendering, setRemoteRendering] = React.useState<boolean>(true);
+  const [repr, setRepr] = React.useState<string>("Surface");
   const [viewId, setViewId] = React.useState<string>('-1');
-
   const renderer = React.useRef<any>(null);
 
   React.useEffect(() => {
-    Network.onError(() => console.log('ERROR'));
-    Network.onClose(() => console.log('Server disconnected'));
-    Network.onReady((conn: Network.Connection) => {
+    Network.onReady((c: Network.Connection) => {
       console.log('onReady');
-      setConn(conn);
+      setConn(c);
     });
     Network.connect({ sessionURL: 'ws://localhost:8080/ws' });
   });
@@ -39,27 +32,37 @@ const ParaView: React.FunctionComponent<Props> = (props) => {
   React.useEffect(() => {
   }, [renderer]);
 
-  const Renderer = remoteRendering
-    ? VtkRenderer
-    : VtkGeometryRenderer;
+  const Renderer = VtkRenderer;
   if (conn === null) {
     return (<div>Not connected</div>);
   }
 
   return (
-    <div>
-      <div>FooHah</div>
-      <div>FooHah2</div>
-      <div>FooHah3</div>
-      <div>FooHah4</div>
+    <div style={{
+      display: 'flex',
+      flexFlow: 'column',
+      height: '100%'
+    }}
+    >
+      <Select
+        style={{ flexGrow: 0 }}
+        onChange={(e) => {
+          const r = e.target.value as string
+          Network.call(conn, 'test.setrepresentation',[r]);
+          setRepr(r);
+        }}
+        value={repr}
+      >
+        <MenuItem value="Points">Points</MenuItem>
+        <MenuItem value="Surface">Surface</MenuItem>
+        <MenuItem value="Surface With Edges">Surface with Edges</MenuItem>
+        <MenuItem value="Wireframe">Wireframe</MenuItem>
+      </Select>
       <Renderer
         style={{
-          position: 'relative',
-          top: 0,
-          left: 0,
-          right: 0,
-          height: '100%',
-          bottom: 0
+          flexGrow: 1,
+          border: '4px solid red',
+          minHeight: 0
         }}
         ref={(c) => {
           renderer.current = c;
@@ -71,17 +74,15 @@ const ParaView: React.FunctionComponent<Props> = (props) => {
         onImageReady={
             () => console.log('image ready')
           }
-        viewIdUpdated={
-            (viewId) => {
-              console.log(`view updated: ${viewId} ${typeof (viewId)}`);
-              setViewId(viewId);
-            }
-          }
+        viewIdUpdated={(vid: string) => {
+          console.log(`view updated: ${viewId} ${typeof (vid)}`);
+          setViewId(vid);
+        }}
         onBusyChange={
             (status) => console.log(`status updated: ${status} ${typeof (status)}`)
           }
         showFPS={props.showFPS}
-        oldImageStream={!remoteRendering}
+        oldImageStream={false}
         resizeOnWindowResize
         clearOneTimeUpdatersOnUnmount
         clearInstanceCacheOnUnmount
