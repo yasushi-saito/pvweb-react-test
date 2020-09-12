@@ -3,6 +3,8 @@ import VtkRenderer from 'paraviewweb/src/React/Renderers/VtkRenderer';
 
 import * as Network from './Network.ts';
 import RepresentationPanel from './RepresentationPanel.tsx';
+import CameraControlPanel from './CameraControlPanel.tsx';
+import * as PvType from './PvType.ts';
 
 interface Props {
   resetCamera? : () => void;
@@ -16,7 +18,12 @@ interface Props {
 
 const ParaView: React.FC<Props> = (props) => {
   const [conn, setConn] = React.useState<Network.Connection | null>(null);
-  const [repr, setRepr] = React.useState<string>("Surface");
+  const [viewState, setViewState] = React.useState<PvType.ViewState>({
+    representation: "Surface",
+    camera: {
+      zoom: 1.0,
+    },
+  });
   const [viewId, setViewId] = React.useState<string>('-1');
   const renderer = React.useRef<any>(null);
 
@@ -43,13 +50,27 @@ const ParaView: React.FC<Props> = (props) => {
       height: '100%'
     }}
     >
+      <CameraControlPanel
+        style={{ flexGrow: 0 }}
+        onReset={() => Network.call(conn, 'test.resetcamera',[])}
+        onSet={(value: PvType.CameraAttr) => {
+          const newViewState = {...viewState, camera: value}
+          Network.call(conn, 'test.setviewstate', [newViewState]);
+          setViewState(newViewState);
+        }}
+        value={viewState.camera}
+      />
       <RepresentationPanel
         style={{ flexGrow: 0 }}
         onChange={(r: string) => {
-          Network.call(conn, 'test.setrepresentation',[r]);
-          setRepr(r);
+          const newViewState = {
+            representation: r,
+            ...viewState
+          };
+          Network.call(conn, 'test.setviewstate',[newViewState]);
+          setViewState(newViewState);
         }}
-        value={repr} />
+        value={viewState.representation} />
       <Renderer
         style={{
           flexGrow: 1,
