@@ -1,9 +1,8 @@
 import * as React from 'react';
-import Select from '@material-ui/core/Select';
-import MenuItem from '@material-ui/core/MenuItem';
 import VtkRenderer from 'paraviewweb/src/React/Renderers/VtkRenderer';
 
 import * as Network from './Network.ts';
+import RepresentationPanel from './RepresentationPanel.tsx';
 
 interface Props {
   resetCamera? : () => void;
@@ -15,7 +14,7 @@ interface Props {
   serverMaxFPS?: number; // 30
 }
 
-const ParaView: React.FunctionComponent<Props> = (props) => {
+const ParaView: React.FC<Props> = (props) => {
   const [conn, setConn] = React.useState<Network.Connection | null>(null);
   const [repr, setRepr] = React.useState<string>("Surface");
   const [viewId, setViewId] = React.useState<string>('-1');
@@ -44,20 +43,13 @@ const ParaView: React.FunctionComponent<Props> = (props) => {
       height: '100%'
     }}
     >
-      <Select
+      <RepresentationPanel
         style={{ flexGrow: 0 }}
-        onChange={(e) => {
-          const r = e.target.value as string
+        onChange={(r: string) => {
           Network.call(conn, 'test.setrepresentation',[r]);
           setRepr(r);
         }}
-        value={repr}
-      >
-        <MenuItem value="Points">Points</MenuItem>
-        <MenuItem value="Surface">Surface</MenuItem>
-        <MenuItem value="Surface With Edges">Surface with Edges</MenuItem>
-        <MenuItem value="Wireframe">Wireframe</MenuItem>
-      </Select>
+        value={repr} />
       <Renderer
         style={{
           flexGrow: 1,

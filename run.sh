@@ -1,10 +1,10 @@
 set -ex
 DIR=$(dirname $0)
 echo DIR $DIR
-(
-    cd $DIR/ts
-    yarn install
-    yarn run build)
+
+#(cd $DIR/ts
+    #yarn install
+    #yarn run build)
 
 pvpython \
     --force-offscreen-rendering \

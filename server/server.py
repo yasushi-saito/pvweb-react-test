@@ -6,6 +6,8 @@ import argparse
 import logging
 import traceback
 
+import numpy as np
+
 from paraview.web import pv_wslink
 from paraview.web import protocols as pv_protocols
 
@@ -24,10 +26,27 @@ class Handler(pv_protocols.ParaViewWebProtocol):
         self._view = simple.GetRenderView()
         self._view.EnableRenderOnInteraction = 0
         self._view.Background = [0, 0, 0]
+        self._view.Background2 = [0, 0, 0]
         self._view_id = f"{self._view.GetGlobalID()}"
 
         # https://www.thingiverse.com/thing:433119
         self._obj = simple.OpenDataFile("/home/saito/src0/testdata/pug.stl")
+        simple.UpdatePipeline(proxy=self._obj)
+
+        di = self._obj.GetDataInformation()
+        camera = self._view.GetActiveCamera()
+        bounds = di.GetBounds()
+        min_bound = np.array((bounds[0], bounds[2], bounds[4]))
+        max_bound = np.array((bounds[1], bounds[3], bounds[5]))
+        centroid = (min_bound + max_bound) / 2.0
+        logging.info(f"Bounds {min_bound} {max_bound} {centroid}")
+        self._view.AxesGrid.Visibility = True  # ParaviewGuide, Chaper 18
+        self._view.ResetCamera()
+        camera.SetFocalPoint(centroid[0], centroid[1], centroid[2])
+        camera.FocalDistance = np.linalg.norm(centroid) * 10
+        self._view.CenterOfRotation = [centroid[0], centroid[1], centroid[2]]
+        self._view.Update()
+
         self._obj_display = simple.Show(self._obj, self._view)
         self._obj_display.Representation = "Surface"
 
@@ -76,6 +95,7 @@ class Server(pv_wslink.PVServerProtocol):
         self.getApplication().SetImageEncoding(0)
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
     parser = argparse.ArgumentParser(description="Test")
     wslink.server.add_arguments(parser)
     args = parser.parse_args()
