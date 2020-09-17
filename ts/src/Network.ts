@@ -43,7 +43,6 @@ function start(wslinkConn: WslinkConnection) {
 
 export function connect(config) {
   if (conn) {
-    console.log('Connect: noop');
     return;
   }
   console.log(`Connect! ${config}`);
@@ -59,7 +58,6 @@ export function connect(config) {
 }
 
 export function onReady(callback: ReadyCallback) {
-  console.log(`onReady ${callback}`);
   readyCallback = callback;
   if (conn) {
     callback(conn);

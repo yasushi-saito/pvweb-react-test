@@ -21,7 +21,12 @@ from paraview import simple
 Vector3 = TypedDict("Vector3", {"x": float, "y": float, "z": float})
 
 CameraAttr = TypedDict(
-    "CameraAttr", {"zoom": Optional[float], "centerOfRotation": Optional[Vector3],}
+    "CameraAttr", {
+        "defaultDistance": Optional[float],
+        "position": Optional[Vector3],
+        "focalPoint": Optional[Vector3],
+        "viewUp": Optional[Vector3],
+    }
 )
 
 ViewState = TypedDict(
@@ -102,11 +107,13 @@ class Handler(pv_protocols.ParaViewWebProtocol):
 
     def _view_state(self) -> ViewState:
         cor = self._view.CenterOfRotation
+        viewUp = self._view.CameraViewUp
         return {
             "representation": str(self._obj_display.Representation),
             "camera": {
                 "zoom": self._zoom,
-                "centerOfRotation": {"x": cor[0], "y": cor[1], "z": cor[2],},
+                "focalPoint": {"x": cor[0], "y": cor[1], "z": cor[2],},
+                "viewUp": {"x": viewUp[0], "y": viewUp[1], "z": viewUp[2]},
             },
         }
 
@@ -139,12 +146,16 @@ class Handler(pv_protocols.ParaViewWebProtocol):
                 self._obj_display.Representation = repr_type
 
             if (camera_state := attr.get("camera")) :
+                viewUp = camera_state.get("viewUp")
+                if viewUp is not None:
+                    self._view.CameraViewUp = (viewUp["x"], viewUp["y"], viewUp["z"])
+
                 zoom = camera_state.get("zoom")
                 if zoom is not None and self._zoom != zoom:
                     if zoom < 0.000001:
                         raise Exception(f"invalid zoom level: {zoom}")
                     camera = self._view.GetActiveCamera()
-                    if False:
+                    if True:
                         # Manual implementation of Dolly. May be less prone to
                         # rounding errors.
                         focal_point = np.array(self._view.CameraFocalPoint)

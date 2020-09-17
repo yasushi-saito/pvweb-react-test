@@ -1,10 +1,72 @@
 import * as React from 'react';
+
+import ResizeObserver from 'resize-observer-polyfill';
 import VtkRenderer from 'paraviewweb/src/React/Renderers/VtkRenderer';
 
 import * as Network from './Network.ts';
 import RepresentationPanel from './RepresentationPanel.tsx';
 import CameraControlPanel from './CameraControlPanel.tsx';
 import * as PvType from './PvType.ts';
+import Debouncer from './Debouncer.ts';
+
+interface OverlayProps {
+  style: React.CSSProperties;
+}
+
+const Overlay: React.FC<OverlayProps> = (props) => {
+  const overlay = React.useRef<any>(null);
+  const observer = React.useRef<ResizeObserver|null>(null);
+  const debouncer = React.useRef<Debouncer|null>(null)
+  interface Size {
+    height: number;
+    width: number;
+  }
+  const [canvasSize, setCanvasSize] = React.useState<Size>({ height: 0, width: 0 });
+
+
+  React.useEffect(() => {
+    const c = overlay.current;
+    if (observer.current === null) {
+      const onClick = (e) => {
+        console.log(`mouse click (${e.clientX},${e.clientY})`);
+      };
+
+      debouncer.current = new Debouncer();
+      observer.current = new ResizeObserver(() => {
+        if (c.clientWidth !== canvasSize.width ||
+          c.clientHeight !== canvasSize.height) {
+          debouncer.current.run(() => {
+            console.log(`Resize: ${c.clientWidth} ${c.clientHeight}`);
+            setCanvasSize({
+              width: c.clientWidth,
+              height: c.clientHeight,
+            });
+          });
+        }
+      });
+      c.addEventListener("click", onClick);
+      return () => {
+        observer.current.unobserve(c);
+        debouncer.current.stop();
+        c.removeEventListener("click", onClick);
+      };
+    }
+  }, [overlay]);
+
+  return (
+    <div
+      style={props.style}
+      ref={overlay}>
+      <svg
+    style={{
+      position: 'absolute',
+      width: '100%',
+      height: '100%',
+      border: '2px solid purple'}}>
+      <circle cx={400} cy={900} r={40} stroke="black" strokeWidth="3" fill="red" />
+      </svg>
+    </div>);
+}
 
 interface Props {
   resetCamera? : () => void;
@@ -29,7 +91,6 @@ const ParaView: React.FC<Props> = (props) => {
 
   React.useEffect(() => {
     Network.onReady((c: Network.Connection) => {
-      console.log('onReady');
       setConn(c);
     });
     Network.connect({ sessionURL: 'ws://localhost:8080/ws' });
@@ -71,11 +132,23 @@ const ParaView: React.FC<Props> = (props) => {
           setViewState(newViewState);
         }}
         value={viewState.representation} />
+      <div
+        style={{
+          // border: '4px solid red',
+          // CSS book Chapter 11 (p526): The position has to be non-static to
+          // make it the parent of the inner components.
+          position: 'relative',
+          flexGrow: 1,
+          minHeight: 0,
+        }}>
       <Renderer
         style={{
-          flexGrow: 1,
-          border: '4px solid red',
-          minHeight: 0
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          left: 0,
+          right: 0,
+          minHeight: 0,
         }}
         ref={(c) => {
           renderer.current = c;
@@ -104,6 +177,17 @@ const ParaView: React.FC<Props> = (props) => {
         throttleTime={props.throttleTime}
         maxFPS={props.serverMaxFPS}
       />
+        <Overlay
+        style={{
+          position: 'absolute',
+          border: '1px solid purple',
+          height: '100%',
+          width: '100%',
+          left: 0,
+          right: 0,
+          minHeight: 0,
+        }}/>
+    </div>
     </div>
   );
 };
