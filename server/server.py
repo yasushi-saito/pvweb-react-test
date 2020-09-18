@@ -38,8 +38,8 @@ CellMetric = TypedDict(
     "CellMetric", {
         "name": str, # Density, Momentum, etc.
         # Exactly one of real or vector3 must be set.
-        "real": float,
-        "vector3": Vector3,
+        "real": Optional[float],
+        "vector3": Optional[Vector3],
     })
 
 CellState = TypedDict(
@@ -205,38 +205,62 @@ class Handler(pv_protocols.ParaViewWebProtocol):
 
             ncell = dataset.GetNumberOfCells()
             logging.info(f"dataset: #cells={ncell}")
+            cells: List[CellState] = []
+
             for ci in range(ncell):
                 cell = dataset.GetCell(ci) # vtkTetra
                 logging.info(f"cell {ci}: {type(cell)} {cell.GetNumberOfPoints()}")
 
-                centroid = cell.GetCentroid()
-                logging.info("CENTROID: {centroid}")
+                points = cell.GetPoints()
+                npoint = points.GetNumberOfPoints()
+                xsum, ysum, zsum = 0.0, 0.0, 0.0
+                for pi in range(npoint):
+                    p = points.GetPoint(pi)
+                    logging.info(f"CENTROID{ci}-{pi}: {p}")
+                    xsum += p[0]
+                    ysum += p[1]
+                    zsum += p[2]
+                center: Vector3 = {
+                    "x": xsum / npoint,
+                    "y": ysum / npoint,
+                    "z": zsum / npoint
+                }
+                logging.info(f"cell {ci}: center={center}")
 
-                if False:
-                    xsum, ysum, zsum = 0.0, 0.0, 0.0
-                    for j in range(npoint):
-                        p = cell.GetPoint(j)
-                        logging.info(f"cell {ci}: point {j}: {p}")
-                        xsum += p[0]
-                        ysum += p[1]
-                        zsum += p[2]
-                    center: Vector3 = {
-                        "x": xsum / npoint,
-                        "y": ysum / npoint,
-                        "z": zsum / npoint
-                    }
-                    logging.info(f"cell {i}: center={center}")
+                metrics: List[CellMetric] = []
 
-            for i in range(narray):
-                array = cell_data.GetAbstractArray(i)
-                ntuple = array.GetNumberOfTuples()
-                logging.info(f"ARRAY({i}) {array.GetName()}: #comp={array.GetNumberOfComponents()} #tuple={ntuple}")
-                for j in range(min(ntuple, 3)):
-                    logging.info(f"DATA({i})-({j}) {array.GetName()} ({j}): {array.GetTuple(j)}")
+                for i in range(narray):
+                    array = cell_data.GetAbstractArray(i)
+                    name = array.GetName()
+                    if name.startswith("vtk"):
+                        # Drop internal fields, e.g., "vtkOriginalCellIds"
+                        continue
+                    ntuple = array.GetNumberOfTuples()
+                    assert ntuple == ncell
+                    data = array.GetTuple(ci)
+                    if len(data) == 1:
+                        metrics.append({
+                            "name": array.GetName(),
+                            "real": data[0]
+                        })
+                    else:
+                        assert len(data) == 3
+                        metrics.append({
+                            "name": array.GetName(),
+                            "vector3": data
+                        })
+                cells.append({
+                    "center": center,
+                    "data": metrics,
+                })
+                    #logging.info(f"ARRAY({i}) {array.GetName()}: #comp={array.GetNumberOfComponents()} #tuple={ntuple}")
+                    #logging.info(f"DATA({i})-({ti}) {array.GetName()} ({j}): {array.GetTuple(ci)}")
 
                 #help(array)
 
-            #logging.info(f"DATASET: {type(mb_dataset)} n={mb_dataset.GetNumberOfBlocks()}")
+            logging.info(f"cells: {cells}")
+            return cells
+
             if False:
                 mb_dataset = dataset
                 for i in range(mb_dataset.GetNumberOfBlocks()):
