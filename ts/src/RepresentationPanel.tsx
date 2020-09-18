@@ -14,21 +14,20 @@ interface Props {
   value: string;
 }
 
-const RepresentationPanel: React.FC<Props> = (props) => {
-  return (
-    <React.Fragment>
-      <FormLabel>Representation</FormLabel>
-      <Select
-        style={props.style}
-        onChange={(e) => props.onChange(e.target.value as string)}
-        value={props.value}
-      >
-        <MenuItem value="Points">Points</MenuItem>
-        <MenuItem value="Surface">Surface</MenuItem>
-        <MenuItem value="Surface With Edges">Surface with Edges</MenuItem>
-        <MenuItem value="Wireframe">Wireframe</MenuItem>
-      </Select>
-  </React.Fragment>);
-}
+const RepresentationPanel: React.FC<Props> = (props) => (
+  <>
+    <FormLabel>Representation</FormLabel>
+    <Select
+      style={props.style}
+      onChange={(e) => props.onChange(e.target.value as string)}
+      value={props.value}
+    >
+      <MenuItem value="Points">Points</MenuItem>
+      <MenuItem value="Surface">Surface</MenuItem>
+      <MenuItem value="Surface With Edges">Surface with Edges</MenuItem>
+      <MenuItem value="Wireframe">Wireframe</MenuItem>
+    </Select>
+  </>
+);
 
-export default RepresentationPanel
+export default RepresentationPanel;

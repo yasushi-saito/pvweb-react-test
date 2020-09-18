@@ -2,7 +2,8 @@ class Debouncer {
   private timer: number = null;
 
   constructor(
-    private readonly timeoutMs: number = 100) {}
+    private readonly timeoutMs: number = 100
+  ) {}
 
   run(fn: () => void) {
     this.stop();

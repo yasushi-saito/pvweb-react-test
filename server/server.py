@@ -7,10 +7,11 @@ import logging
 import traceback
 import numpy as np
 
-from typing import TypedDict, Optional
+from typing import TypedDict, Optional, Dict, List
 
 from paraview.web import pv_wslink
 from paraview.web import protocols as pv_protocols
+from vtkmodules.vtkCommonCore import vtkCollection
 
 import wslink.server
 
@@ -33,6 +34,30 @@ ViewState = TypedDict(
     "ViewState", {"camera": CameraAttr, "representation": Optional[str],}
 )
 
+def _list_multiblock_components(filter_node) -> Dict[str, int]:
+    result: Dict[str, int] = {}
+
+    def _rec(node, level: int) -> None:
+        cdi = node.GetCompositeDataInformation()
+        for i in range(cdi.GetNumberOfChildren()):
+            name = cdi.GetName(i)
+            logging.info(f"NAME({level}): {name}")
+            seq = len(result)
+            result[name] = seq
+            if (di := cdi.GetDataInformation(i)) is not None:
+                _rec(di, level+1)
+
+    _rec(filter_node.GetDataInformation(), 0)
+    return result
+
+def _extract_blocks(node, block_names: List[str]):
+    blocks = _list_multiblock_components(node)
+    block_ids = [id for (name, id) in blocks.items() if name in block_names]
+    new_node = simple.ExtractBlock(Input=node)
+    new_node.BlockIndices = block_ids
+    logging.info(f"BLOCKS: {block_ids} {blocks}")
+    return new_node
+
 
 class Handler(pv_protocols.ParaViewWebProtocol):
     def __init__(self, image_delivery) -> None:
@@ -47,15 +72,20 @@ class Handler(pv_protocols.ParaViewWebProtocol):
         self._view_id = f"{self._view.GetGlobalID()}"
 
         # https://www.thingiverse.com/thing:433119
-        self._obj = simple.OpenDataFile("/home/saito/src0/testdata/pug.stl")
+        self._obj = simple.OpenDataFile("/home/saito/fvm_results/oneram6_mixed_0005_000_001.lcsoln")
+            #"/home/saito/src0/testdata/pug.stl")
         simple.UpdatePipeline(proxy=self._obj)
+        #self._obj = _extract_blocks(self._obj, ["0/elem"])
+        #simple.UpdatePipeline(proxy=self._obj)
 
         self._view.AxesGrid.Visibility = True  # ParaviewGuide, Chaper 18
         self._reset_camera()
         self._view.Update()
+        logging.info(f"viewsize: {self._view.ViewSize}")
 
         self._obj_display = simple.Show(self._obj, self._view)
         self._obj_display.Representation = "Surface"
+        simple.ColorBy(self._obj_display, ("CELLS", "Density"))
 
         # ProxyManager helper
         pxm = simple.servermanager.ProxyManager()
@@ -82,6 +112,7 @@ class Handler(pv_protocols.ParaViewWebProtocol):
         di = self._obj.GetDataInformation()
         camera = self._view.GetActiveCamera()
         logging.info(f"CAMER: {camera.__dict__}")
+        logging.info(f"viewsize: {self._view.ViewSize}")
         help(camera)
         logging.info("CAMER2")
         bounds = di.GetBounds()
@@ -116,6 +147,100 @@ class Handler(pv_protocols.ParaViewWebProtocol):
                 "viewUp": {"x": viewUp[0], "y": viewUp[1], "z": viewUp[2]},
             },
         }
+
+    @exportRPC("test.showvalueatpoint")
+    def set_show_value_at_point(self, x: float, y: float, points: bool) -> ViewState:
+        try:
+            logging.info(f"viewsize: {self._view.ViewSize}")
+            logging.info(f"SELECT: {x} {y} {points}")
+            logging.info(f"SELECT0.0: {len(self._obj.CellData)}")
+
+            reprs = vtkCollection()
+            sources = vtkCollection()
+            found = self._view.SelectSurfaceCells([x, y, x, y], reprs, sources)
+            logging.info(f"SELECT: found={found} #repr={reprs.GetNumberOfItems()} #src={sources.GetNumberOfItems()}")
+            if found and reprs.GetNumberOfItems() == 1 and sources.GetNumberOfItems() == 1:
+                sm = simple.servermanager
+                repr = sm._getPyProxy(reprs.GetItemAsObject(0))
+                sel = sm._getPyProxy(sources.GetItemAsObject(0))
+                logging.info(f"SELECT3.0: {type(repr)} {type(repr.Input)} {sel}")
+                logging.info(f"SELECT3.0X: {repr}")
+                #logging.info(f"SELECT3.0X: {len(repr.CellData)}")
+                if True:
+                    selectionX = simple.ExtractSelection(Input=self._obj, Selection=sel)
+                    selectionX.UpdatePipeline()
+                    logging.info(f"SELECT3.1: {selectionX}")
+                    logging.info(f"SELECT3.2: {len(selectionX.CellData)}")
+                selection = simple.ExtractSelection(Input=repr.Input, Selection=sel)
+                selection = simple.MergeBlocks(Input=selection)
+                selection.UpdatePipeline()
+                if True:
+                    cd = selection.CellData
+                    logging.info(f"SELECT3.1: {len(cd)}")
+                    for key, v in cd.items():
+                        logging.info(f"SELECT3.1: key={key} #tuples={v.GetNumberOfTuples()} #comp={v.GetNumberOfComponents()}")
+
+                mb_dataset = selection.GetClientSideObject().GetOutput()
+                if True:
+                    selectedData = mb_dataset.GetCellData()
+                    nbArrays = selectedData.GetNumberOfArrays()
+                    logging.info(f"SELECT4: {type(mb_dataset)} {type(selectedData)} narray={nbArrays}")
+                    for i in range(nbArrays):
+                        array = selectedData.GetAbstractArray(i)
+                        ntuple =array.GetNumberOfTuples()
+                        logging.info(f"ARRAY({i}) {array.GetName()}: #comp={array.GetNumberOfComponents()} #tuple={ntuple}")
+                        for j in range(min(ntuple, 3)):
+                            logging.info(f"DATA({i})-({j}) {array.GetName()} ({j}): {array.GetTuple(j)}")
+
+                        #help(array)
+
+                    wc = mb_dataset.GetPoints()
+                    if wc:
+                        npoint = wc.GetNumberOfPoints()
+                        xsum, ysum, zsum = 0.0, 0.0, 0.0
+                        for j in range(npoint):
+                            p = wc.GetPoint(j)
+                            logging.info(f"ARRAY2-{i}-{j}: n={wc.GetNumberOfPoints()} {p}")
+                            xsum += p[0]
+                            ysum += p[1]
+                            zsum += p[2]
+                        x,y,z = xsum/npoint, ysum/npoint, zsum/npoint
+                        logging.info(f"ARRAY2-{i}: center=({x},{y},{z})")
+
+                    #logging.info(f"DATASET: {type(mb_dataset)} n={mb_dataset.GetNumberOfBlocks()}")
+                if False:
+                    for i in range(mb_dataset.GetNumberOfBlocks()):
+                        dataset = mb_dataset.GetBlock(i)
+                        logging.info(f"DATASET {i}: {type(dataset)}")
+                        if not dataset:
+                            continue
+
+                        selectedData = dataset.GetCellData()
+                        nbArrays = selectedData.GetNumberOfArrays()
+                        logging.info(f"SELECT4-{i}: {type(dataset)} {type(selectedData)} narray={nbArrays}")
+                        #logging.info(f"SELECT5: {dataset}")
+                        #logging.info(f"SELECT6: {selectedData}")
+
+                        for i in range(nbArrays):
+                            array = selectedData.GetAbstractArray(i)
+                            logging.info(f"ARRAY-{i}: {array}")
+
+                        wc = dataset.GetPoints()
+                        if wc:
+                            npoint = wc.GetNumberOfPoints()
+                            xsum, ysum, zsum = 0.0, 0.0, 0.0
+                            for j in range(npoint):
+                                p = wc.GetPoint(j)
+                                logging.info(f"ARRAY2-{i}-{j}: n={wc.GetNumberOfPoints()} {p}")
+                                xsum += p[0]
+                                ysum += p[1]
+                                zsum += p[2]
+                            x,y,z = xsum/npoint, ysum/npoint, zsum/npoint
+                            logging.info(f"ARRAY2-{i}: center=({x},{y},{z})")
+            return self._view_state()
+        except:
+            traceback.print_exc()
+            raise
 
     @exportRPC("test.resetcamera")
     def set_reset_camera(self) -> ViewState:
@@ -205,7 +330,7 @@ class Server(pv_wslink.PVServerProtocol):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(filename)s:%(lineno)s: %(message)s")
     parser = argparse.ArgumentParser(description="Test")
     wslink.server.add_arguments(parser)
     args = parser.parse_args()

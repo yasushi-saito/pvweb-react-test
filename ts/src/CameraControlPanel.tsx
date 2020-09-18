@@ -25,22 +25,22 @@ const CameraControlPanel: React.FC<Props> = (props) => {
   const zoomIn = () => {
     props.onSet({
       ...props.value,
-      zoom: props.value.zoom * zoomInFactor,
+      zoom: props.value.zoom * zoomInFactor
     });
-  }
+  };
   const zoomOut = () => {
     props.onSet({
       ...props.value,
-      zoom: props.value.zoom * zoomOutFactor,
+      zoom: props.value.zoom * zoomOutFactor
     });
-  }
+  };
 
   const setViewUp = (x:number, y:number, z:number) => {
     props.onSet({
       ...props.value,
-      viewUp: {x,y,z},
+      viewUp: { x, y, z }
     });
-  }
+  };
 
   return (
     <div style={props.style}>
@@ -48,10 +48,11 @@ const CameraControlPanel: React.FC<Props> = (props) => {
       <Button onClick={props.onReset}>Reset</Button>
       <Button onClick={zoomIn}>Zoom+</Button>
       <Button onClick={zoomOut}>Zoom-</Button>
-      <Button onClick={()=>setViewUp(1,0,0)}>X up-</Button>
-      <Button onClick={()=>setViewUp(0,1,0)}>Y up-</Button>
-      <Button onClick={()=>setViewUp(0,0,1)}>Z up-</Button>
-  </div>);
-}
+      <Button onClick={() => setViewUp(1, 0, 0)}>X up-</Button>
+      <Button onClick={() => setViewUp(0, 1, 0)}>Y up-</Button>
+      <Button onClick={() => setViewUp(0, 0, 1)}>Z up-</Button>
+    </div>
+  );
+};
 
-export default CameraControlPanel
+export default CameraControlPanel;

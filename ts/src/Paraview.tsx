@@ -1,5 +1,7 @@
 import * as React from 'react';
 
+import Button from '@material-ui/core/Button';
+
 import ResizeObserver from 'resize-observer-polyfill';
 import VtkRenderer from 'paraviewweb/src/React/Renderers/VtkRenderer';
 
@@ -11,62 +13,48 @@ import Debouncer from './Debouncer.ts';
 
 interface OverlayProps {
   style: React.CSSProperties;
+  onSelectPoint: (x: number, y: number) => void;
 }
 
 const Overlay: React.FC<OverlayProps> = (props) => {
   const overlay = React.useRef<any>(null);
   const observer = React.useRef<ResizeObserver|null>(null);
-  const debouncer = React.useRef<Debouncer|null>(null)
-  interface Size {
-    height: number;
-    width: number;
-  }
-  const [canvasSize, setCanvasSize] = React.useState<Size>({ height: 0, width: 0 });
-
+  const debouncer = React.useRef<Debouncer|null>(null);
 
   React.useEffect(() => {
     const c = overlay.current;
     if (observer.current === null) {
       const onClick = (e) => {
-        console.log(`mouse click (${e.clientX},${e.clientY})`);
+        console.log(`mouse click client=(${e.clientX},${e.clientY}) off=(${e.offsetX},${e.offsetY}) size=(${c.clientWidth},${c.clientHeight})`);
+        props.onSelectPoint(e.offsetX, c.clientHeight - e.offsetY);
       };
 
-      debouncer.current = new Debouncer();
-      observer.current = new ResizeObserver(() => {
-        if (c.clientWidth !== canvasSize.width ||
-          c.clientHeight !== canvasSize.height) {
-          debouncer.current.run(() => {
-            console.log(`Resize: ${c.clientWidth} ${c.clientHeight}`);
-            setCanvasSize({
-              width: c.clientWidth,
-              height: c.clientHeight,
-            });
-          });
-        }
-      });
-      c.addEventListener("click", onClick);
+      c.addEventListener('click', onClick);
+      // observer.current.observe(c);
       return () => {
-        observer.current.unobserve(c);
-        debouncer.current.stop();
-        c.removeEventListener("click", onClick);
+        c.removeEventListener('click', onClick);
       };
     }
-  }, [overlay]);
+  });
 
   return (
     <div
       style={props.style}
-      ref={overlay}>
+      ref={overlay}
+    >
       <svg
-    style={{
-      position: 'absolute',
-      width: '100%',
-      height: '100%',
-      border: '2px solid purple'}}>
-      <circle cx={400} cy={900} r={40} stroke="black" strokeWidth="3" fill="red" />
+        style={{
+          position: 'absolute',
+          width: '100%',
+          height: '100%',
+          border: '2px solid purple'
+        }}
+      >
+        <circle cx={400} cy={900} r={40} stroke="black" strokeWidth="3" fill="red" />
       </svg>
-    </div>);
-}
+    </div>
+  );
+};
 
 interface Props {
   resetCamera? : () => void;
@@ -81,12 +69,13 @@ interface Props {
 const ParaView: React.FC<Props> = (props) => {
   const [conn, setConn] = React.useState<Network.Connection | null>(null);
   const [viewState, setViewState] = React.useState<PvType.ViewState>({
-    representation: "Surface",
+    representation: 'Surface',
     camera: {
-      zoom: 1.0,
-    },
+      zoom: 1.0
+    }
   });
   const [viewId, setViewId] = React.useState<string>('-1');
+  const [selectMode, setSelectMode] = React.useState<boolean>(false);
   const renderer = React.useRef<any>(null);
 
   React.useEffect(() => {
@@ -98,6 +87,10 @@ const ParaView: React.FC<Props> = (props) => {
 
   React.useEffect(() => {
   }, [renderer]);
+
+  const onSelectPoint = (x: number, y: number) => {
+    Network.call(conn, 'test.showvalueatpoint', [x, y, true]);
+  };
 
   const Renderer = VtkRenderer;
   if (conn === null) {
@@ -113,9 +106,9 @@ const ParaView: React.FC<Props> = (props) => {
     >
       <CameraControlPanel
         style={{ flexGrow: 0 }}
-        onReset={() => Network.call(conn, 'test.resetcamera',[])}
+        onReset={() => Network.call(conn, 'test.resetcamera', [])}
         onSet={(value: PvType.CameraAttr) => {
-          const newViewState = {...viewState, camera: value}
+          const newViewState = { ...viewState, camera: value };
           Network.call(conn, 'test.setviewstate', [newViewState]);
           setViewState(newViewState);
         }}
@@ -128,10 +121,15 @@ const ParaView: React.FC<Props> = (props) => {
             representation: r,
             ...viewState
           };
-          Network.call(conn, 'test.setviewstate',[newViewState]);
+          Network.call(conn, 'test.setviewstate', [newViewState]);
           setViewState(newViewState);
         }}
-        value={viewState.representation} />
+        value={viewState.representation}
+      />
+      <Button onClick={() => setSelectMode(!selectMode)}>
+        {selectMode ? 'Cancel' : 'Select Points'}
+      </Button>
+
       <div
         style={{
           // border: '4px solid red',
@@ -139,55 +137,61 @@ const ParaView: React.FC<Props> = (props) => {
           // make it the parent of the inner components.
           position: 'relative',
           flexGrow: 1,
-          minHeight: 0,
-        }}>
-      <Renderer
-        style={{
-          position: 'absolute',
-          top: 0,
-          bottom: 0,
-          left: 0,
-          right: 0,
-          minHeight: 0,
+          minHeight: 0
         }}
-        ref={(c) => {
-          renderer.current = c;
-        }}
-        client={conn.client}
-        viewId={viewId}
-        connection={conn.wslinkConn}
-        session={conn.wslinkConn.session}
-        onImageReady={
+      >
+        <Renderer
+          style={{
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            minHeight: 0
+          }}
+          ref={(c) => {
+            renderer.current = c;
+          }}
+          client={conn.client}
+          viewId={viewId}
+          connection={conn.wslinkConn}
+          session={conn.wslinkConn.session}
+          onImageReady={
             () => console.log('image ready')
           }
-        viewIdUpdated={(vid: string) => {
-          console.log(`view updated: ${viewId} ${typeof (vid)}`);
-          setViewId(vid);
-        }}
-        onBusyChange={
+          viewIdUpdated={(vid: string) => {
+            console.log(`view updated: ${viewId} ${typeof (vid)}`);
+            setViewId(vid);
+          }}
+          onBusyChange={
             (status) => console.log(`status updated: ${status} ${typeof (status)}`)
           }
-        showFPS={props.showFPS}
-        oldImageStream={false}
-        resizeOnWindowResize
-        clearOneTimeUpdatersOnUnmount
-        clearInstanceCacheOnUnmount
-        interactiveQuality={props.interactiveQuality}
-        interactiveRatio={props.interactiveRatio}
-        throttleTime={props.throttleTime}
-        maxFPS={props.serverMaxFPS}
-      />
-        <Overlay
-        style={{
-          position: 'absolute',
-          border: '1px solid purple',
-          height: '100%',
-          width: '100%',
-          left: 0,
-          right: 0,
-          minHeight: 0,
-        }}/>
-    </div>
+          showFPS={props.showFPS}
+          oldImageStream={false}
+          resizeOnWindowResize
+          clearOneTimeUpdatersOnUnmount
+          clearInstanceCacheOnUnmount
+          interactiveQuality={props.interactiveQuality}
+          interactiveRatio={props.interactiveRatio}
+          throttleTime={props.throttleTime}
+          maxFPS={props.serverMaxFPS}
+        />
+        { selectMode
+          ? (
+            <Overlay
+              style={{
+                position: 'absolute',
+                border: '1px solid purple',
+                height: '100%',
+                width: '100%',
+                left: 0,
+                right: 0,
+                minHeight: 0
+              }}
+              onSelectPoint={onSelectPoint}
+            />
+          ) : null }
+      </div>
     </div>
   );
 };
