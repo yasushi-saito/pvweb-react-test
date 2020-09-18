@@ -11,22 +11,86 @@ import CameraControlPanel from './CameraControlPanel.tsx';
 import * as PvType from './PvType.ts';
 import Debouncer from './Debouncer.ts';
 
-interface OverlayProps {
-  style: React.CSSProperties;
-  onSelectPoint: (x: number, y: number) => void;
+interface Vector3 {
+  x: number;
+  y: number;
+  z: number;
 }
 
+interface CellMetric {
+  name: string
+  real?: number;
+  vector3?: Vector3;
+}
+
+interface CellState {
+  screenX?: number;
+  screenY?: number;
+  center: Vector3;
+  data: CellMetric[];
+}
+
+interface OverlayProps {
+  connection: Network.Connection;
+  style: React.CSSProperties;
+}
+
+
+const drawData = (key: string, x: number, y: number, d: CellMetric) => (
+  <text
+    key={key}
+    x={x}
+    y={y}
+    fontFamily="sans-serif"
+    fill="white"
+  >
+    {d.real
+      ? `${d.name}: ${d.real}`
+      : `${d.name}: (${d.vector3.x},${d.vector3.y},${d.vector3.z})`}
+  </text>
+);
+
+const drawCell = (c: CellState) => {
+  const key = `${c.screenX}:${c.screenY}`;
+  return (
+    <React.Fragment key={key}>
+      <text
+        key={key}
+        x={c.screenX}
+        y={c.screenY}
+        fontFamily="sans-serif"
+        fill="white"
+      >
+        {`(${c.center.x},${c.center.y},${c.center.z})`}
+      </text>
+      {c.data.map((d, i) => drawData(`${key}:${i}`, c.screenX, c.screenY + (i + 1) * 20, d))}
+    </React.Fragment>
+  );
+};
+
+
 const Overlay: React.FC<OverlayProps> = (props) => {
-  const overlay = React.useRef<any>(null);
+  const ref = React.useRef<any>(null);
   const observer = React.useRef<ResizeObserver|null>(null);
-  const debouncer = React.useRef<Debouncer|null>(null);
+  const [cells, setCells] = React.useState<CellState[]>([]);
+
+  const onSelectPoint = (x: number, y: number) => {
+    const py = ref.current.clientHeight - y; // paraview coordinate is upside down.
+    Network.call(props.connection, 'test.cellsatpoint', [x, py]).then((newCells: CellState[]) => {
+      const n = [...cells];
+      newCells.forEach((c) => {
+        n.push({ screenX: x, screenY: y, ...c });
+      });
+      setCells(n);
+    });
+  };
 
   React.useEffect(() => {
-    const c = overlay.current;
+    const c = ref.current;
     if (observer.current === null) {
       const onClick = (e) => {
         console.log(`mouse click client=(${e.clientX},${e.clientY}) off=(${e.offsetX},${e.offsetY}) size=(${c.clientWidth},${c.clientHeight})`);
-        props.onSelectPoint(e.offsetX, c.clientHeight - e.offsetY);
+        onSelectPoint(e.offsetX, e.offsetY);
       };
 
       c.addEventListener('click', onClick);
@@ -36,11 +100,10 @@ const Overlay: React.FC<OverlayProps> = (props) => {
       };
     }
   });
-
   return (
     <div
       style={props.style}
-      ref={overlay}
+      ref={ref}
     >
       <svg
         style={{
@@ -50,11 +113,9 @@ const Overlay: React.FC<OverlayProps> = (props) => {
           border: '2px solid purple'
         }}
       >
-      <circle cx={400} cy={900} r={40} stroke="black" strokeWidth="3" fill="red" />
-     <g>
-      <text x={300} y={800} fontFamily="sans-serif" fill="white">Hello</text>
-      <text x={300} y={810} fontFamily="sans-serif" fill="red">World</text>
-      </g>
+        <g>
+          {cells.map(drawCell)}
+        </g>
       </svg>
     </div>
   );
@@ -92,10 +153,6 @@ const ParaView: React.FC<Props> = (props) => {
   React.useEffect(() => {
   }, [renderer]);
 
-  const onSelectPoint = (x: number, y: number) => {
-    Network.call(conn, 'test.cellsatpoint', [x, y]);
-  };
-
   const Renderer = VtkRenderer;
   if (conn === null) {
     return (<div>Not connected</div>);
@@ -131,7 +188,7 @@ const ParaView: React.FC<Props> = (props) => {
         value={viewState.representation}
       />
       <Button onClick={() => setSelectMode(!selectMode)}>
-        {selectMode ? 'Cancel' : 'Select Points'}
+        {selectMode ? 'Cancel' : 'Show cell data'}
       </Button>
 
       <div
@@ -192,7 +249,7 @@ const ParaView: React.FC<Props> = (props) => {
                 right: 0,
                 minHeight: 0
               }}
-              onSelectPoint={onSelectPoint}
+              connection={conn}
             />
           ) : null }
       </div>

@@ -247,12 +247,16 @@ class Handler(pv_protocols.ParaViewWebProtocol):
                         assert len(data) == 3
                         metrics.append({
                             "name": array.GetName(),
-                            "vector3": data
-                        })
-                cells.append({
-                    "center": center,
-                    "data": metrics,
-                })
+                            "vector3": {
+                                "x":data[0],
+                                "y":data[1],
+                                "z":data[2]
+                            }})
+                if len(metrics) > 0:
+                    cells.append({
+                        "center": center,
+                        "data": metrics,
+                    })
                     #logging.info(f"ARRAY({i}) {array.GetName()}: #comp={array.GetNumberOfComponents()} #tuple={ntuple}")
                     #logging.info(f"DATA({i})-({ti}) {array.GetName()} ({j}): {array.GetTuple(ci)}")
 
@@ -291,7 +295,7 @@ class Handler(pv_protocols.ParaViewWebProtocol):
                             zsum += p[2]
                         x,y,z = xsum/npoint, ysum/npoint, zsum/npoint
                         logging.info(f"ARRAY2-{i}: center=({x},{y},{z})")
-            return self._view_state()
+            raise Exception("sholdn't happens")
         except:
             traceback.print_exc()
             raise
