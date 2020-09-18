@@ -34,6 +34,21 @@ ViewState = TypedDict(
     "ViewState", {"camera": CameraAttr, "representation": Optional[str],}
 )
 
+CellMetric = TypedDict(
+    "CellMetric", {
+        "name": str, # Density, Momentum, etc.
+        # Exactly one of real or vector3 must be set.
+        "real": float,
+        "vector3": Vector3,
+    })
+
+CellState = TypedDict(
+    "CellValue", {
+        "center": Vector3,
+        "data": List[CellMetric],
+    })
+
+
 def _list_multiblock_components(filter_node) -> Dict[str, int]:
     result: Dict[str, int] = {}
 
@@ -148,53 +163,99 @@ class Handler(pv_protocols.ParaViewWebProtocol):
             },
         }
 
-    @exportRPC("test.showvalueatpoint")
-    def set_show_value_at_point(self, x: float, y: float, points: bool) -> ViewState:
+    @exportRPC("test.cellsatpoint")
+    def cells_at_point(self, x: float, y: float) -> List[CellState]:
         try:
-            logging.info(f"viewsize: {self._view.ViewSize}")
-            logging.info(f"SELECT: {x} {y} {points}")
-            logging.info(f"SELECT0.0: {len(self._obj.CellData)}")
+            logging.info(f"cells_at_point: ({x},{y}), viewsize={self._view.ViewSize}")
 
             reprs = vtkCollection()
             sources = vtkCollection()
             found = self._view.SelectSurfaceCells([x, y, x, y], reprs, sources)
             logging.info(f"SELECT: found={found} #repr={reprs.GetNumberOfItems()} #src={sources.GetNumberOfItems()}")
-            if found and reprs.GetNumberOfItems() == 1 and sources.GetNumberOfItems() == 1:
-                sm = simple.servermanager
-                repr = sm._getPyProxy(reprs.GetItemAsObject(0))
-                sel = sm._getPyProxy(sources.GetItemAsObject(0))
-                logging.info(f"SELECT3.0: {type(repr)} {type(repr.Input)} {sel}")
-                logging.info(f"SELECT3.0X: {repr}")
-                #logging.info(f"SELECT3.0X: {len(repr.CellData)}")
-                if True:
-                    selectionX = simple.ExtractSelection(Input=self._obj, Selection=sel)
-                    selectionX.UpdatePipeline()
-                    logging.info(f"SELECT3.1: {selectionX}")
-                    logging.info(f"SELECT3.2: {len(selectionX.CellData)}")
-                selection = simple.ExtractSelection(Input=repr.Input, Selection=sel)
-                selection = simple.MergeBlocks(Input=selection)
-                selection.UpdatePipeline()
-                if True:
-                    cd = selection.CellData
-                    logging.info(f"SELECT3.1: {len(cd)}")
-                    for key, v in cd.items():
-                        logging.info(f"SELECT3.1: key={key} #tuples={v.GetNumberOfTuples()} #comp={v.GetNumberOfComponents()}")
+            if not found or reprs.GetNumberOfItems() != 1 or sources.GetNumberOfItems() != 1:
+                logging.info(f"No object found at  ({x}, {y})")
+                return []
 
-                mb_dataset = selection.GetClientSideObject().GetOutput()
-                if True:
-                    selectedData = mb_dataset.GetCellData()
-                    nbArrays = selectedData.GetNumberOfArrays()
-                    logging.info(f"SELECT4: {type(mb_dataset)} {type(selectedData)} narray={nbArrays}")
-                    for i in range(nbArrays):
-                        array = selectedData.GetAbstractArray(i)
-                        ntuple =array.GetNumberOfTuples()
-                        logging.info(f"ARRAY({i}) {array.GetName()}: #comp={array.GetNumberOfComponents()} #tuple={ntuple}")
-                        for j in range(min(ntuple, 3)):
-                            logging.info(f"DATA({i})-({j}) {array.GetName()} ({j}): {array.GetTuple(j)}")
+            sm = simple.servermanager
+            repr = sm._getPyProxy(reprs.GetItemAsObject(0))
+            sel = sm._getPyProxy(sources.GetItemAsObject(0))
+            #logging.info(f"SELECT3.0: {type(repr)} {type(repr.Input)} {sel}")
+            #logging.info(f"SELECT3.0X: {repr}")
+            #logging.info(f"SELECT3.0X: {len(repr.CellData)}")
+            if False:
+                selectionX = simple.ExtractSelection(Input=self._obj, Selection=sel)
+                selectionX.UpdatePipeline()
+                logging.info(f"SELECT3.1: {selectionX}")
+                logging.info(f"SELECT3.2: {len(selectionX.CellData)}")
+            selection = simple.ExtractSelection(Input=repr.Input, Selection=sel)
+            selection = simple.MergeBlocks(Input=selection)
+            selection.UpdatePipeline()
+            if False:
+                cd = selection.CellData
+                logging.info(f"SELECT3.1: {len(cd)}")
+                for key, v in cd.items():
+                    logging.info(f"SELECT3.1: key={key} #tuples={v.GetNumberOfTuples()} #comp={v.GetNumberOfComponents()}")
 
-                        #help(array)
+            # Get the raw data array through a back door. selection.CellData
+            # only gives us a summary.
+            dataset = selection.GetClientSideObject().GetOutput()
+            cell_data = dataset.GetCellData()
+            narray = cell_data.GetNumberOfArrays()
+            logging.info(f"SELECT4: {type(dataset)} {type(cell_data)} narray={narray}")
 
-                    wc = mb_dataset.GetPoints()
+            ncell = dataset.GetNumberOfCells()
+            logging.info(f"dataset: #cells={ncell}")
+            for ci in range(ncell):
+                cell = dataset.GetCell(ci) # vtkTetra
+                logging.info(f"cell {ci}: {type(cell)} {cell.GetNumberOfPoints()}")
+
+                centroid = cell.GetCentroid()
+                logging.info("CENTROID: {centroid}")
+
+                if False:
+                    xsum, ysum, zsum = 0.0, 0.0, 0.0
+                    for j in range(npoint):
+                        p = cell.GetPoint(j)
+                        logging.info(f"cell {ci}: point {j}: {p}")
+                        xsum += p[0]
+                        ysum += p[1]
+                        zsum += p[2]
+                    center: Vector3 = {
+                        "x": xsum / npoint,
+                        "y": ysum / npoint,
+                        "z": zsum / npoint
+                    }
+                    logging.info(f"cell {i}: center={center}")
+
+            for i in range(narray):
+                array = cell_data.GetAbstractArray(i)
+                ntuple = array.GetNumberOfTuples()
+                logging.info(f"ARRAY({i}) {array.GetName()}: #comp={array.GetNumberOfComponents()} #tuple={ntuple}")
+                for j in range(min(ntuple, 3)):
+                    logging.info(f"DATA({i})-({j}) {array.GetName()} ({j}): {array.GetTuple(j)}")
+
+                #help(array)
+
+            #logging.info(f"DATASET: {type(mb_dataset)} n={mb_dataset.GetNumberOfBlocks()}")
+            if False:
+                mb_dataset = dataset
+                for i in range(mb_dataset.GetNumberOfBlocks()):
+                    dataset = mb_dataset.GetBlock(i)
+                    logging.info(f"DATASET {i}: {type(dataset)}")
+                    if not dataset:
+                        continue
+
+                    cell_data = dataset.GetCellData()
+                    narray = cell_data.GetNumberOfArrays()
+                    logging.info(f"SELECT4-{i}: {type(dataset)} {type(cell_data)} narray={narray}")
+                    #logging.info(f"SELECT5: {dataset}")
+                    #logging.info(f"SELECT6: {cell_data}")
+
+                    for i in range(narray):
+                        array = cell_data.GetAbstractArray(i)
+                        logging.info(f"ARRAY-{i}: {array}")
+
+                    wc = dataset.GetPoints()
                     if wc:
                         npoint = wc.GetNumberOfPoints()
                         xsum, ysum, zsum = 0.0, 0.0, 0.0
@@ -206,37 +267,6 @@ class Handler(pv_protocols.ParaViewWebProtocol):
                             zsum += p[2]
                         x,y,z = xsum/npoint, ysum/npoint, zsum/npoint
                         logging.info(f"ARRAY2-{i}: center=({x},{y},{z})")
-
-                    #logging.info(f"DATASET: {type(mb_dataset)} n={mb_dataset.GetNumberOfBlocks()}")
-                if False:
-                    for i in range(mb_dataset.GetNumberOfBlocks()):
-                        dataset = mb_dataset.GetBlock(i)
-                        logging.info(f"DATASET {i}: {type(dataset)}")
-                        if not dataset:
-                            continue
-
-                        selectedData = dataset.GetCellData()
-                        nbArrays = selectedData.GetNumberOfArrays()
-                        logging.info(f"SELECT4-{i}: {type(dataset)} {type(selectedData)} narray={nbArrays}")
-                        #logging.info(f"SELECT5: {dataset}")
-                        #logging.info(f"SELECT6: {selectedData}")
-
-                        for i in range(nbArrays):
-                            array = selectedData.GetAbstractArray(i)
-                            logging.info(f"ARRAY-{i}: {array}")
-
-                        wc = dataset.GetPoints()
-                        if wc:
-                            npoint = wc.GetNumberOfPoints()
-                            xsum, ysum, zsum = 0.0, 0.0, 0.0
-                            for j in range(npoint):
-                                p = wc.GetPoint(j)
-                                logging.info(f"ARRAY2-{i}-{j}: n={wc.GetNumberOfPoints()} {p}")
-                                xsum += p[0]
-                                ysum += p[1]
-                                zsum += p[2]
-                            x,y,z = xsum/npoint, ysum/npoint, zsum/npoint
-                            logging.info(f"ARRAY2-{i}: center=({x},{y},{z})")
             return self._view_state()
         except:
             traceback.print_exc()

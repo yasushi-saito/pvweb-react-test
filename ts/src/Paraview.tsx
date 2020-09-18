@@ -50,7 +50,11 @@ const Overlay: React.FC<OverlayProps> = (props) => {
           border: '2px solid purple'
         }}
       >
-        <circle cx={400} cy={900} r={40} stroke="black" strokeWidth="3" fill="red" />
+      <circle cx={400} cy={900} r={40} stroke="black" strokeWidth="3" fill="red" />
+     <g>
+      <text x={300} y={800} fontFamily="sans-serif" fill="white">Hello</text>
+      <text x={300} y={810} fontFamily="sans-serif" fill="red">World</text>
+      </g>
       </svg>
     </div>
   );
@@ -89,7 +93,7 @@ const ParaView: React.FC<Props> = (props) => {
   }, [renderer]);
 
   const onSelectPoint = (x: number, y: number) => {
-    Network.call(conn, 'test.showvalueatpoint', [x, y, true]);
+    Network.call(conn, 'test.cellsatpoint', [x, y]);
   };
 
   const Renderer = VtkRenderer;
