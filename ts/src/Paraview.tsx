@@ -45,8 +45,8 @@ const drawData = (key: string, x: number, y: number, d: CellMetric) => (
     fill="white"
   >
     {d.real
-      ? `${d.name}: ${d.real}`
-      : `${d.name}: (${d.vector3.x},${d.vector3.y},${d.vector3.z})`}
+      ? `${d.name}: ${d.real.toFixed(4)}`
+      : `${d.name}: (${d.vector3.x.toFixed(4)},${d.vector3.y.toFixed(4)},${d.vector3.z.toFixed(4)})`}
   </text>
 );
 
@@ -61,7 +61,7 @@ const drawCell = (c: CellState) => {
         fontFamily="sans-serif"
         fill="white"
       >
-        {`(${c.center.x},${c.center.y},${c.center.z})`}
+        {`(${c.center.x.toFixed(4)},${c.center.y.toFixed(4)},${c.center.z.toFixed(4)})`}
       </text>
       {c.data.map((d, i) => drawData(`${key}:${i}`, c.screenX, c.screenY + (i + 1) * 20, d))}
     </React.Fragment>
@@ -79,7 +79,9 @@ const Overlay: React.FC<OverlayProps> = (props) => {
     Network.call(props.connection, 'test.cellsatpoint', [x, py]).then((newCells: CellState[]) => {
       const n = [...cells];
       newCells.forEach((c) => {
-        n.push({ screenX: x, screenY: y, ...c });
+        // The Y axis grows bottom to top on the server, but top to bottom on
+        // the client.
+        n.push({...c, screenY: ref.current.clientHeight-c.screenY})
       });
       setCells(n);
     });
@@ -110,7 +112,9 @@ const Overlay: React.FC<OverlayProps> = (props) => {
           position: 'absolute',
           width: '100%',
           height: '100%',
-          border: '2px solid purple'
+          // TODO(saito): need a better indication of active svg overlay.
+          border: '10px solid purple',
+          boxSizing: "border-box",
         }}
       >
         <g>
@@ -192,14 +196,18 @@ const ParaView: React.FC<Props> = (props) => {
       </Button>
 
       <div
-        style={{
-          // border: '4px solid red',
-          // CSS book Chapter 11 (p526): The position has to be non-static to
-          // make it the parent of the inner components.
-          position: 'relative',
-          flexGrow: 1,
-          minHeight: 0
-        }}
+    style={{
+      // Explicitly set the position this div to a
+      // non-static value.  Otherwise, the children of this element will bypass
+      // this div when finding the containing block for absolute placement.
+      //
+      // Ref: // CSS2 9.3.2
+      // (https://www.w3.org/TR/CSS2/visuren.html#absolute-positioning) and
+      // CSS the definitive guide (4th ed), Ch 11.
+      position: 'relative',
+      flexGrow: 1,
+      minHeight: 0
+    }}
       >
         <Renderer
           style={{

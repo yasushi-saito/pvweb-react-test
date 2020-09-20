@@ -7,17 +7,24 @@ import logging
 import traceback
 import numpy as np
 
-from typing import TypedDict, Optional, Dict, List
+from typing import TypedDict, Optional, Dict, List, Tuple, NamedTuple
 
 from paraview.web import pv_wslink
 from paraview.web import protocols as pv_protocols
 from vtkmodules.vtkCommonCore import vtkCollection
+from vtkmodules.vtkCommonMath import vtkMatrix4x4
 
 import wslink.server
 
 from wslink import register as exportRPC
 
 from paraview import simple
+
+CoordTransformMatrix = NamedTuple(
+    'CoordTransformMatrix',
+    [('view_width', int),
+     ('view_height', int),
+     ('matrix', vtkMatrix4x4)])
 
 Vector3 = TypedDict("Vector3", {"x": float, "y": float, "z": float})
 
@@ -85,6 +92,7 @@ class Handler(pv_protocols.ParaViewWebProtocol):
         self._view.Background = [0, 0, 0]
         self._view.Background2 = [0, 0, 0]
         self._view_id = f"{self._view.GetGlobalID()}"
+        self._coord_transform_matrix = None
 
         # https://www.thingiverse.com/thing:433119
         self._obj = simple.OpenDataFile("/home/saito/fvm_results/oneram6_mixed_0005_000_001.lcsoln")
@@ -122,6 +130,75 @@ class Handler(pv_protocols.ParaViewWebProtocol):
         # Custom rendering settings
         renderingSettings = pxm.GetProxy("settings", "RenderViewSettings")
         renderingSettings.LODThreshold = 102400
+
+    def _world_to_screen(self, wx: float, wy: float, wz: float) -> Tuple[float, float]:
+        mtx = self._world_to_screen_transform_matrix()
+        result = mtx.matrix.MultiplyPoint([wx, wy, wz, 1])
+        result = [ c / result[3] for c in result ]
+        return result
+
+        if False:
+            camera = self._view.GetActiveCamera()
+            clip_range = camera.GetClippingRange()
+            view_size = self._view.ViewSize
+            logging.info(f"Camera clipping range {clip_range} size={view_size}")
+            aspect_ratio = view_size[0] / view_size[1]
+            near_z = clip_range[0]
+            far_z = clip_range[1]
+            world_to_view = camera.GetCompositeProjectionTransformMatrix(aspect_ratio, near_z, far_z)
+
+            # The following matrix, plus normalization by homogeneous coord, will transfrom to display
+            # M = [X/2,   0, 0, X/2,
+            #        0, Y/2, 0, Y/2,
+            #        0,   0, 1,   0,
+            #        0,   0, 0,   1]
+            x_2 = view_size[0] / 2.0
+            y_2= view_size[1] / 2.0
+            viewToDisplay = vtkMatrix4x4()
+            viewToDisplay.DeepCopy([x_2, 0, 0, x_2, 0, y_2, 0, y_2, 0, 0, 1, 0, 0, 0, 0, 1])
+
+            fullTransform = vtkMatrix4x4()
+            vtkMatrix4x4.Multiply4x4(viewToDisplay, world_to_view, fullTransform)
+
+            # Express some point in homogeneous world coords
+            worldCoords = [wx, wy, wz, 1]
+            result = fullTransform.MultiplyPoint(worldCoords)
+            # Normalize by homogeneous component
+            result = [ c / result[3] for c in result ]
+            return result
+
+    def _world_to_screen_transform_matrix(self):
+        view_size = self._view.ViewSize
+
+        if ((matrix := self._coord_transform_matrix) != None and
+            matrix.view_width == view_size[0] and
+            matrix.view_height == view_size[1]):
+            return matrix
+
+        camera = self._view.GetActiveCamera()
+        clip_range = camera.GetClippingRange()
+        logging.info(f"Camera clipping range {clip_range} size={view_size}")
+        aspect_ratio = view_size[0] / view_size[1]
+        near_z = clip_range[0]
+        far_z = clip_range[1]
+        world_to_view = camera.GetCompositeProjectionTransformMatrix(aspect_ratio, near_z, far_z)
+
+        # The following matrix, plus normalization by homogeneous coord, will transfrom to display
+        # M = [X/2,   0, 0, X/2,
+        #        0, Y/2, 0, Y/2,
+        #        0,   0, 1,   0,
+        #        0,   0, 0,   1]
+        x_2 = view_size[0] / 2.0
+        y_2= view_size[1] / 2.0
+        viewToDisplay = vtkMatrix4x4()
+        viewToDisplay.DeepCopy([x_2, 0, 0, x_2, 0, y_2, 0, y_2, 0, 0, 1, 0, 0, 0, 0, 1])
+
+        fullTransform = vtkMatrix4x4()
+        vtkMatrix4x4.Multiply4x4(viewToDisplay, world_to_view, fullTransform)
+
+        return CoordTransformMatrix(view_width=view_size[0],
+                                    view_height=view_size[1],
+                                    matrix=fullTransform)
 
     def _reset_camera(self) -> None:
         di = self._obj.GetDataInformation()
@@ -211,24 +288,7 @@ class Handler(pv_protocols.ParaViewWebProtocol):
                 cell = dataset.GetCell(ci) # vtkTetra
                 logging.info(f"cell {ci}: {type(cell)} {cell.GetNumberOfPoints()}")
 
-                points = cell.GetPoints()
-                npoint = points.GetNumberOfPoints()
-                xsum, ysum, zsum = 0.0, 0.0, 0.0
-                for pi in range(npoint):
-                    p = points.GetPoint(pi)
-                    logging.info(f"CENTROID{ci}-{pi}: {p}")
-                    xsum += p[0]
-                    ysum += p[1]
-                    zsum += p[2]
-                center: Vector3 = {
-                    "x": xsum / npoint,
-                    "y": ysum / npoint,
-                    "z": zsum / npoint
-                }
-                logging.info(f"cell {ci}: center={center}")
-
                 metrics: List[CellMetric] = []
-
                 for i in range(narray):
                     array = cell_data.GetAbstractArray(i)
                     name = array.GetName()
@@ -251,9 +311,30 @@ class Handler(pv_protocols.ParaViewWebProtocol):
                                 "x":data[0],
                                 "y":data[1],
                                 "z":data[2]
+
                             }})
                 if len(metrics) > 0:
+                    points = cell.GetPoints()
+                    npoint = points.GetNumberOfPoints()
+                    xsum, ysum, zsum = 0.0, 0.0, 0.0
+                    for pi in range(npoint):
+                        p = points.GetPoint(pi)
+                        logging.info(f"CENTROID{ci}-{pi}: {p}")
+                        xsum += p[0]
+                        ysum += p[1]
+                        zsum += p[2]
+                    center: Vector3 = {
+                        "x": xsum / npoint,
+                        "y": ysum / npoint,
+                        "z": zsum / npoint
+                    }
+                    screen_coord = self._world_to_screen(center["x"],
+                                                         center["y"],
+                                                         center["z"])
+                    logging.info(f"cell {ci}: center={center}, screen={screen_coord}")
                     cells.append({
+                        "screenX": screen_coord[0],
+                        "screenY": screen_coord[1],
                         "center": center,
                         "data": metrics,
                     })
