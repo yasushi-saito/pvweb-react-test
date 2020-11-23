@@ -443,7 +443,7 @@ class Handler(pv_protocols.ParaViewWebProtocol):
                     self._view.CameraFocalPoint = (cor["x"], cor["y"], cor["z"])
                     self._view.CenterOfRotation = (cor["x"], cor["y"], cor["z"])
 
-            self._view.Update()
+            #self._view.Update()
             self._image_delivery.imagePush({"view": self._view_id})
 
             return self._view_state()

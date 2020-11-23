@@ -71,7 +71,7 @@ const drawCell = (c: CellState) => {
 
 const Overlay: React.FC<OverlayProps> = (props) => {
   const ref = React.useRef<any>(null);
-  const observer = React.useRef<ResizeObserver|null>(null);
+  const observer = React.useRef<ResizeObserver | null>(null);
   const [cells, setCells] = React.useState<CellState[]>([]);
 
   const onSelectPoint = (x: number, y: number) => {
@@ -81,7 +81,7 @@ const Overlay: React.FC<OverlayProps> = (props) => {
       newCells.forEach((c) => {
         // The Y axis grows bottom to top on the server, but top to bottom on
         // the client.
-        n.push({...c, screenY: ref.current.clientHeight-c.screenY})
+        n.push({ ...c, screenY: ref.current.clientHeight - c.screenY })
       });
       setCells(n);
     });
@@ -126,7 +126,7 @@ const Overlay: React.FC<OverlayProps> = (props) => {
 };
 
 interface Props {
-  resetCamera? : () => void;
+  resetCamera?: () => void;
   showFPS?: boolean;
   remoteRendering?: boolean;
   interactiveQuality?: number; // 50
@@ -182,12 +182,12 @@ const ParaView: React.FC<Props> = (props) => {
       <RepresentationPanel
         style={{ flexGrow: 0 }}
         onChange={(r: string) => {
-          const newViewState = {
-            representation: r,
-            ...viewState
-          };
-          Network.call(conn, 'test.setviewstate', [newViewState]);
-          setViewState(newViewState);
+          const newViewState = { ...viewState, representation: r };
+          console.log(`representation onChange '${r}' new=${JSON.stringify(newViewState)}`);
+          Network.call(conn, 'test.setviewstate', [newViewState]).then(reply => {
+            console.log(`Got reply: ${JSON.stringify(reply)}`);
+            setViewState(newViewState);
+          });
         }}
         value={viewState.representation}
       />
@@ -196,18 +196,18 @@ const ParaView: React.FC<Props> = (props) => {
       </Button>
 
       <div
-    style={{
-      // Explicitly set the position this div to a
-      // non-static value.  Otherwise, the children of this element will bypass
-      // this div when finding the containing block for absolute placement.
-      //
-      // Ref: // CSS2 9.3.2
-      // (https://www.w3.org/TR/CSS2/visuren.html#absolute-positioning) and
-      // CSS the definitive guide (4th ed), Ch 11.
-      position: 'relative',
-      flexGrow: 1,
-      minHeight: 0
-    }}
+        style={{
+          // Explicitly set the position this div to a
+          // non-static value.  Otherwise, the children of this element will bypass
+          // this div when finding the containing block for absolute placement.
+          //
+          // Ref: // CSS2 9.3.2
+          // (https://www.w3.org/TR/CSS2/visuren.html#absolute-positioning) and
+          // CSS the definitive guide (4th ed), Ch 11.
+          position: 'relative',
+          flexGrow: 1,
+          minHeight: 0
+        }}
       >
         <Renderer
           style={{
@@ -245,7 +245,7 @@ const ParaView: React.FC<Props> = (props) => {
           throttleTime={props.throttleTime}
           maxFPS={props.serverMaxFPS}
         />
-        { selectMode
+        {selectMode
           ? (
             <Overlay
               style={{
@@ -259,7 +259,7 @@ const ParaView: React.FC<Props> = (props) => {
               }}
               connection={conn}
             />
-          ) : null }
+          ) : null}
       </div>
     </div>
   );

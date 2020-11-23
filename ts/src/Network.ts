@@ -64,10 +64,11 @@ export function onReady(callback: ReadyCallback) {
   }
 }
 
-export function call(cn: Connection, methodName: string, args: any[]) : Promise<any> {
+export function call(cn: Connection, methodName: string, args: any[]): Promise<any> {
   if (!cn) {
     // TODO(saito): create a new connection and retry.
     throw new Error(`${{ methodName }}: not connected`);
   }
+  console.log(`Call: method=${methodName} args=${JSON.stringify(args)}`);
   return cn.wslinkConn.getSession().call(methodName, args);
 }
