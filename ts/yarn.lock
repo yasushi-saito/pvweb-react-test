@@ -7255,10 +7255,10 @@ ws@^6.2.1:
   dependencies:
     async-limiter "~1.0.0"
 
-wslink@^0.1.13:
-  version "0.1.13"
-  resolved "https://registry.yarnpkg.com/wslink/-/wslink-0.1.13.tgz#1495b3a35ec6b1de0371d3b97578cc55f76f5813"
-  integrity sha512-7I5JOoUW3YMFKDG+WfuAZwlZPbD33eIqfk7vJS5XcOSnbHpwm2NUc6qu7req+k1HjwkRgc3+addBxkcwbN/XyQ==
+wslink@^0.1.15:
+  version "0.1.15"
+  resolved "https://registry.yarnpkg.com/wslink/-/wslink-0.1.15.tgz#cf38c8bf09a60a7662a473066e29aacdf17ec2b1"
+  integrity sha512-2IIC8Bd7qkMPk7LEqvrqkV4wzeQdET+LhbaX3tkd/NTxcWh2zzUpdwtvouZkwTsbmfXSRbyB0TTBU3cRHKL3FA==
   dependencies:
     json5 "2.1.0"
 
