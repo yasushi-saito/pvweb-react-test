@@ -4121,12 +4121,10 @@ json3@^3.3.2:
   resolved "https://registry.yarnpkg.com/json3/-/json3-3.3.3.tgz#7fc10e375fc5ae42c4705a5cc0aa6f62be305b81"
   integrity sha512-c7/8mbUsKigAbLkD5B010BK4D9LZm7A1pNItkEwiUZRpIN66exu/e7YQWysGun+TRKaJp8MhemM+VkfWv42aCA==
 
-json5@2.1.0:
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/json5/-/json5-2.1.0.tgz#e7a0c62c48285c628d20a10b85c89bb807c32850"
-  integrity sha512-8Mh9h6xViijj36g7Dxi+Y4S6hNGV96vcJZr/SrlHh1LR/pEn/8j/+qIBbs44YKl69Lrfctp4QD+AdWLTMqEZAQ==
-  dependencies:
-    minimist "^1.2.0"
+json5@2.2.3:
+  version "2.2.3"
+  resolved "https://registry.yarnpkg.com/json5/-/json5-2.2.3.tgz#78cd6f1a19bdc12b73db5ad0c61efd66c1e29283"
+  integrity sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==
 
 json5@^1.0.1:
   version "1.0.1"
@@ -7255,12 +7253,12 @@ ws@^6.2.1:
   dependencies:
     async-limiter "~1.0.0"
 
-wslink@^0.1.13:
-  version "0.1.13"
-  resolved "https://registry.yarnpkg.com/wslink/-/wslink-0.1.13.tgz#1495b3a35ec6b1de0371d3b97578cc55f76f5813"
-  integrity sha512-7I5JOoUW3YMFKDG+WfuAZwlZPbD33eIqfk7vJS5XcOSnbHpwm2NUc6qu7req+k1HjwkRgc3+addBxkcwbN/XyQ==
+wslink@^1.10.1:
+  version "1.10.1"
+  resolved "https://registry.yarnpkg.com/wslink/-/wslink-1.10.1.tgz#98564ed80f90081e88da9ae12d657b3fb1aaeace"
+  integrity sha512-Mu6d4DG/yadcEbF4KqfC+a8SsTtOF6J9aTpxkZzf8FnPkRLOWDeP40Au6mrvD0We3HjMTvz1T1tWiL9bszFDsg==
   dependencies:
-    json5 "2.1.0"
+    json5 "2.2.3"
 
 xmlbuilder@9.0.7:
   version "9.0.7"
